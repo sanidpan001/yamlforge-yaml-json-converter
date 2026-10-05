@@ -1,0 +1,1863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YamlForge — YAML to JSON Converter & JSON to YAML Converter Online</title>
+<meta name="description" content="YamlForge is a free yaml to json converter and json to yaml converter online. Validate YAML, split multi-document streams, catch YAML 1.1 boolean gotchas, and visualize anchors — all in your browser.">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #101418; --panel: #161b22; --panel2: #1b212a; --line: #262e38;
+    --amber: #f59e0b; --amber-dim: #b45309; --mint: #10b981; --mint-dim: #047857;
+    --ink: #e8edf2; --muted: #9aa7b4; --code-bg: #0c0f13;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  /* faint blueprint grid backdrop */
+  .forge-bg {
+    background-image:
+      linear-gradient(rgba(245,158,11,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245,158,11,.045) 1px, transparent 1px);
+    background-size: 34px 34px;
+  }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  .panel-head {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .55rem .9rem; border-bottom: 1px solid var(--line);
+    font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+  }
+  .rivet { width: 8px; height: 8px; border-radius: 999px;
+    background: radial-gradient(circle at 35% 30%, #fbbf24, #92400e);
+    box-shadow: inset 0 -1px 2px rgba(0,0,0,.6); flex: none; }
+  .codebox {
+    background: var(--code-bg); color: #dbe4ec;
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .82rem; line-height: 1.55;
+  }
+  textarea.codebox { caret-color: var(--amber); }
+  textarea.codebox:focus { outline: none; }
+  .gutter {
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .82rem; line-height: 1.55;
+    color: #5b6774; text-align: right; user-select: none;
+    background: #12161c; border-right: 1px solid var(--line);
+    padding: .75rem .5rem; overflow: hidden; white-space: pre;
+  }
+  .gutter .g-err { color: #fff; background: rgba(239,68,68,.85); border-radius: 4px; padding: 0 4px; }
+  .gutter .g-warn { color: #1a1005; background: rgba(245,158,11,.9); border-radius: 4px; padding: 0 4px; }
+  .btn-forge {
+    background: linear-gradient(180deg, #fbbf24, #d97706);
+    color: #1a1005; font-weight: 800; border-radius: 12px;
+    box-shadow: 0 3px 0 #92400e, 0 8px 20px rgba(245,158,11,.25);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .btn-forge:hover { transform: translateY(-1px); }
+  .btn-forge:active { transform: translateY(2px); box-shadow: 0 1px 0 #92400e; }
+  .btn-ghost {
+    border: 1px solid var(--line); background: var(--panel2); color: var(--ink);
+    font-weight: 600; border-radius: 10px; transition: border-color .15s ease;
+  }
+  .btn-ghost:hover { border-color: var(--amber); }
+  .seg { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 4px; display: inline-flex; gap: 4px; }
+  .seg button { border-radius: 9px; padding: .5rem 1rem; font-weight: 700; font-size: .85rem; color: var(--muted); }
+  .seg button.active { background: linear-gradient(180deg, #fbbf24, #d97706); color: #1a1005; box-shadow: 0 2px 0 #92400e; }
+  select.field, input.field {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 10px; padding: .45rem .6rem; font-size: .82rem; font-weight: 600;
+  }
+  select.field:focus { outline: none; border-color: var(--amber); }
+  .badge-forge {
+    display: inline-flex; align-items: center; gap: .45rem;
+    border: 1px solid rgba(16,185,129,.5); background: rgba(16,185,129,.1); color: #6ee7b7;
+    font-size: .72rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+    padding: .35rem .8rem; border-radius: 999px;
+  }
+  .err-card { border-left: 4px solid #ef4444; background: rgba(239,68,68,.07); }
+  .warn-card { border-left: 4px solid var(--amber); background: rgba(245,158,11,.07); }
+  .ok-card { border-left: 4px solid var(--mint); background: rgba(16,185,129,.07); }
+  .chip-loc {
+    font-family: 'JetBrains Mono', monospace; font-size: .72rem; font-weight: 700;
+    background: #0c0f13; border: 1px solid var(--line); border-radius: 6px; padding: .1rem .45rem;
+    cursor: pointer; white-space: nowrap;
+  }
+  .chip-loc:hover { border-color: var(--amber); color: var(--amber); }
+  .tag-code {
+    font-family: 'JetBrains Mono', monospace; font-size: .68rem; font-weight: 700;
+    border-radius: 6px; padding: .12rem .5rem; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .tag-gotcha { background: rgba(245,158,11,.16); color: #fbbf24; border: 1px solid rgba(245,158,11,.45); }
+  .tag-dup { background: rgba(239,68,68,.14); color: #fca5a5; border: 1px solid rgba(239,68,68,.45); }
+  .tag-info { background: rgba(16,185,129,.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,.4); }
+  details.faq { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  details.faq summary { cursor: pointer; font-weight: 700; padding: 1rem 1.25rem; list-style: none; }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::before { content: '▸ '; color: var(--amber); }
+  details.faq[open] summary::before { content: '▾ '; }
+  details.faq[open] { border-color: var(--amber); }
+  details.faq .faq-body { padding: 0 1.25rem 1.25rem; color: var(--muted); }
+  .anchor-card { border: 1px solid var(--line); background: var(--panel2); border-radius: 12px; }
+  .flash { animation: flashline 1.1s ease; }
+  @keyframes flashline { 0%, 100% { background: transparent; } 30% { background: rgba(245,158,11,.28); } }
+  .rail-btn {
+    width: 64px; height: 64px; border-radius: 999px; flex: none;
+    background: linear-gradient(180deg, #fbbf24, #d97706); color: #1a1005;
+    box-shadow: 0 4px 0 #92400e, 0 10px 26px rgba(245,158,11,.35);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .1s ease, box-shadow .1s ease;
+  }
+  .rail-btn:hover { transform: translateY(-2px) scale(1.04); }
+  .rail-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #92400e; }
+  .rail-line { width: 2px; background: linear-gradient(180deg, transparent, var(--line) 20%, var(--line) 80%, transparent); }
+  article.seo h2 { font-size: 1.35rem; font-weight: 800; margin: 2rem 0 .8rem; color: #fff; }
+  article.seo h3 { font-size: 1.05rem; font-weight: 700; margin: 1.4rem 0 .6rem; color: #fbbf24; }
+  article.seo p, article.seo li { color: #b9c4cf; line-height: 1.75; margin-bottom: .9rem; }
+  article.seo ul { list-style: disc; padding-left: 1.4rem; }
+  article.seo code { font-family: 'JetBrains Mono', monospace; font-size: .82em; background: #0c0f13; border: 1px solid var(--line); border-radius: 6px; padding: .1rem .4rem; color: #fbbf24; }
+  article.seo pre { background: #0c0f13; border: 1px solid var(--line); border-radius: 10px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
+  article.seo pre code { background: none; border: none; padding: 0; color: #dbe4ec; }
+</style>
+</head>
+<body id="top" class="forge-bg min-h-screen">
+
+<!-- ======================= STICKY HEADER ======================= -->
+<header class="sticky top-0 z-40 border-b border-[#262e38] bg-[#101418]/95 backdrop-blur">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2.5">
+      <span class="w-9 h-9 rounded-xl flex items-center justify-center font-black text-lg text-[#1a1005]" style="background:linear-gradient(135deg,#fbbf24,#d97706);box-shadow:0 2px 0 #92400e">Y</span>
+      <span class="font-extrabold text-xl tracking-tight text-white">Yaml<span style="color:#f59e0b">Forge</span></span>
+    </a>
+    <nav class="flex items-center gap-5 text-sm font-semibold">
+      <a href="#top" class="text-[#9aa7b4] hover:text-white transition">Home</a>
+      <a href="https://fixoraa.tech" class="text-[#9aa7b4] hover:text-white transition">More Tools</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ======================= TOP AD ======================= -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pt-4" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <div class="origin-top scale-[0.44] sm:scale-100 shrink-0">
+        <script>
+          atOptions = { 'key' : '4e68ac77881c17fe128a46565d9a4e8c', 'format' : 'iframe', 'height' : 90, 'width' : 728, 'params' : {} };
+        </script>
+        <script src="https://www.highrevenueformat.com/4e68ac77881c17fe128a46565d9a4e8c/invoke.js"></script>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= TOOL ======================= -->
+<main class="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+
+  <div class="text-center mb-6">
+    <span class="badge-forge"><span class="w-2 h-2 rounded-full bg-[#10b981] animate-pulse"></span>Unlimited Free Usage</span>
+    <h1 class="text-3xl sm:text-4xl font-black text-white mt-4 tracking-tight">YAML <span style="color:#f59e0b">⇄</span> JSON Converter</h1>
+    <p class="text-[#9aa7b4] mt-2 max-w-2xl mx-auto text-sm sm:text-base">Convert YAML to JSON and JSON to YAML in your browser. Multi-document streams, line-precise error highlighting, YAML&nbsp;1.1 boolean gotcha warnings and an anchor&nbsp;/&nbsp;merge-key visualizer — no signup, no uploads.</p>
+  </div>
+
+  <!-- direction + options -->
+  <div class="flex flex-wrap items-center justify-center gap-3 mb-5">
+    <div class="seg" role="tablist" aria-label="Conversion direction">
+      <button id="yf-tab-y2j" class="active" role="tab" aria-selected="true">YAML → JSON</button>
+      <button id="yf-tab-j2y" role="tab" aria-selected="false">JSON → YAML</button>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-6 text-sm">
+    <label class="flex items-center gap-2 text-[#9aa7b4] font-semibold">YAML booleans
+      <select id="yf-yaml-version" class="field" title="YAML 1.1 treats yes/no/on/off as booleans; 1.2 keeps them strings">
+        <option value="1.1" selected>1.1 (yes/no → bool)</option>
+        <option value="1.2">1.2 (yes/no → string)</option>
+      </select>
+    </label>
+    <label class="flex items-center gap-2 text-[#9aa7b4] font-semibold">JSON indent
+      <select id="yf-json-indent" class="field"><option value="2" selected>2</option><option value="4">4</option></select>
+    </label>
+    <label class="flex items-center gap-2 text-[#9aa7b4] font-semibold">YAML indent
+      <select id="yf-yaml-indent" class="field"><option value="2" selected>2</option><option value="4">4</option></select>
+    </label>
+    <label class="flex items-center gap-2 text-[#9aa7b4] font-semibold">Multi-doc output
+      <select id="yf-multidoc-mode" class="field" title="How multiple documents are joined in the output">
+        <option value="separated" selected>--- separated</option>
+        <option value="array">JSON array</option>
+      </select>
+    </label>
+    <label class="flex items-center gap-2 text-[#9aa7b4] font-semibold cursor-pointer">
+      <input id="yf-auto" type="checkbox" checked class="w-4 h-4 accent-[#f59e0b]"> Auto-convert
+    </label>
+  </div>
+
+  <!-- converter panes -->
+  <div class="grid lg:grid-cols-[1fr_auto_1fr] gap-4 items-stretch">
+
+    <!-- INPUT PANE -->
+    <section class="panel overflow-hidden flex flex-col" aria-label="Input">
+      <div class="panel-head text-[#fbbf24]"><span class="rivet"></span>Input<span class="rivet ml-auto"></span></div>
+      <div class="flex flex-1 min-h-[320px]">
+        <div id="yf-gutter" class="gutter w-12 flex-none" aria-hidden="true">1</div>
+        <textarea id="yf-input" class="codebox flex-1 p-3 resize-y min-h-[320px] w-full" spellcheck="false" placeholder="Paste YAML or JSON here…"></textarea>
+      </div>
+      <div class="flex flex-wrap gap-2 p-3 border-t border-[#262e38]">
+        <button id="yf-sample" class="btn-ghost text-xs px-3 py-2">Sample</button>
+        <button id="yf-upload" class="btn-ghost text-xs px-3 py-2">Upload file</button>
+        <input id="yf-file" type="file" accept=".yaml,.yml,.json,.txt" class="hidden">
+        <button id="yf-clear" class="btn-ghost text-xs px-3 py-2">Clear</button>
+        <span id="yf-status" class="ml-auto text-xs font-semibold text-[#9aa7b4] self-center"></span>
+      </div>
+    </section>
+
+    <!-- ACTION RAIL -->
+    <div class="flex lg:flex-col items-center justify-center gap-3 py-1">
+      <div class="rail-line hidden lg:block flex-1"></div>
+      <button id="yf-convert" class="rail-btn" title="Convert (Ctrl+Enter)">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+      </button>
+      <div class="rail-line hidden lg:block flex-1"></div>
+    </div>
+
+    <!-- OUTPUT PANE -->
+    <section class="panel overflow-hidden flex flex-col" aria-label="Output">
+      <div class="panel-head text-[#6ee7b7]"><span class="rivet"></span>Output<span class="rivet ml-auto"></span></div>
+      <pre id="yf-output" class="codebox flex-1 p-3 min-h-[320px] overflow-auto whitespace-pre-wrap break-words" aria-live="polite"></pre>
+      <div class="flex flex-wrap gap-2 p-3 border-t border-[#262e38]">
+        <button id="yf-copy" class="btn-ghost text-xs px-3 py-2">Copy</button>
+        <button id="yf-download" class="btn-ghost text-xs px-3 py-2">Download</button>
+        <span id="yf-stats" class="ml-auto text-xs text-[#9aa7b4] self-center mono"></span>
+      </div>
+    </section>
+  </div>
+
+  <!-- diagnostics -->
+  <div class="grid md:grid-cols-2 gap-4 mt-4">
+    <section class="panel p-4" aria-label="Errors">
+      <h2 class="text-xs font-extrabold tracking-[0.16em] uppercase text-[#fca5a5] mb-3">Errors <span id="yf-err-count" class="mono"></span></h2>
+      <div id="yf-errors" class="space-y-2 text-sm"><p class="text-[#5b6774] text-xs">No errors. Convert something to validate it.</p></div>
+    </section>
+    <section class="panel p-4" aria-label="Warnings">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xs font-extrabold tracking-[0.16em] uppercase text-[#fbbf24]">Warnings <span id="yf-warn-count" class="mono"></span></h2>
+        <button id="yf-quote-gotchas" class="btn-ghost text-xs px-3 py-1.5 hidden">Quote all risky values</button>
+      </div>
+      <div id="yf-warnings" class="space-y-2 text-sm"><p class="text-[#5b6774] text-xs">Warnings (duplicate keys, YAML 1.1 boolean gotchas…) appear here.</p></div>
+    </section>
+  </div>
+
+  <!-- anchor visualizer -->
+  <section class="panel mt-4 p-4" aria-label="Anchor and merge-key visualizer">
+    <h2 class="text-xs font-extrabold tracking-[0.16em] uppercase text-[#6ee7b7] mb-1">Anchor / Alias / Merge-key Visualizer</h2>
+    <p class="text-xs text-[#5b6774] mb-3">Every <span class="mono text-[#fbbf24]">&amp;anchor</span>, <span class="mono text-[#fbbf24]">*alias</span> and <span class="mono text-[#fbbf24]">&lt;&lt;</span> merge found in the input. Click a line chip to jump to it.</p>
+    <div id="yf-anchor-viz" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <p class="text-[#5b6774] text-xs sm:col-span-2 lg:col-span-3">Convert something containing anchors to see the graph.</p>
+    </div>
+  </section>
+
+  <!-- supported subset -->
+  <details id="yf-subset" class="panel mt-4 p-4 text-sm">
+    <summary class="font-bold cursor-pointer text-white">Supported YAML subset <span class="text-[#5b6774] font-normal">— what this parser handles, honestly</span></summary>
+    <ul id="yf-subset-list" class="mt-3 space-y-1.5 text-[#9aa7b4] list-disc pl-5 text-[13px]"></ul>
+  </details>
+
+</main>
+
+<!-- ======================= BOTTOM AD ======================= -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pb-4" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <script async src="https://js.wpadmngr.com/static/adManager.js" data-admpid="464498"></script>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= SEO ARTICLE ======================= -->
+<section class="mx-auto max-w-6xl px-4 sm:px-6 pb-10">
+<article class="seo panel p-6 sm:p-10">
+
+<h2>YamlForge: The YAML to JSON Converter That Actually Explains Itself</h2>
+<p>If you work with configuration files, you live in two worlds. Application code speaks JSON — the strict, brace-heavy data format that every API, every JavaScript runtime, and every NoSQL database understands natively. Humans, on the other hand, write YAML — the indentation-based format behind Docker Compose files, Kubernetes manifests, GitHub Actions workflows, and Ansible playbooks. Moving data between those two worlds is a daily chore, and that is exactly what this <strong>yaml to json converter</strong> is built for. Paste YAML on the left, get clean, validated JSON on the right — or flip the direction and use it as a <strong>json to yaml converter online</strong> whenever you need human-readable config out of machine data.</p>
+<p>Most online converters are black boxes: they either succeed silently or fail with a cryptic message. YamlForge was designed differently. It parses your input with a transparent, documented YAML subset, reports every problem with an exact line and column number, warns you about the famous YAML 1.1 boolean traps, flags duplicate keys that would silently destroy data, and even draws you a map of every anchor, alias, and merge key in your file. Everything runs 100% in your browser — your configs never leave your machine.</p>
+
+<h2>YAML vs JSON: Why Both Exist</h2>
+<p>JSON (JavaScript Object Notation) is a data-interchange format optimized for machines. Its grammar is tiny and unambiguous: objects in curly braces, arrays in square brackets, strings in double quotes. Every programming language ships a JSON parser, which is why APIs return JSON and why it became the default language of the web.</p>
+<p>YAML (YAML Ain't Markup Language) is optimized for humans. It drops the braces, brackets, and most quotes, and uses indentation to express structure instead. Compare the same data in both formats. In JSON you write <code>{"server": {"host": "web-1", "port": 8080}}</code>; in YAML you write <code>server:</code> on one line and indent <code>host: web-1</code> beneath it. The YAML version is easier to read, easier to comment (JSON has no comments at all), and easier to edit by hand at 2 a.m. during an outage.</p>
+<p>That readability comes at a cost: YAML's grammar is famously subtle. Indentation must be consistent, tabs are forbidden, and — as we will see — innocent-looking words like <code>yes</code> and <code>on</code> can silently change meaning. A good converter does not just translate syntax; it protects you from these traps. That is why YamlForge doubles as a <strong>yaml validator online</strong>: every conversion is also a full validation pass.</p>
+
+<h2>How to Convert YAML to JSON</h2>
+<p>Using the converter takes seconds:</p>
+<ul>
+<li><strong>1. Paste your YAML</strong> into the input pane, or use the Upload button to load a <code>.yaml</code> / <code>.yml</code> file from your disk.</li>
+<li><strong>2. Pick your YAML boolean mode.</strong> Version 1.1 (the default) follows the classic spec where <code>yes</code>, <code>no</code>, <code>on</code>, and <code>off</code> become booleans. Version 1.2 treats them as plain strings, matching modern parsers.</li>
+<li><strong>3. Convert.</strong> With Auto-convert on, the output updates as you type. Otherwise press the forge button (or Ctrl+Enter).</li>
+<li><strong>4. Review diagnostics.</strong> Errors appear with line and column numbers — click any location chip to jump straight to the problem in your input. Warnings flag duplicate keys and boolean gotchas before they cost you.</li>
+<li><strong>5. Copy or download</strong> the resulting JSON.</li>
+</ul>
+<p>The JSON output is pretty-printed with your choice of 2- or 4-space indentation, ready to paste into an API client, a test fixture, or a JavaScript file.</p>
+
+<h2>How to Convert JSON to YAML</h2>
+<p>Switch to the <strong>JSON → YAML</strong> tab and the panes swap roles. Paste JSON — an API response, a <code>package.json</code>, a Terraform state excerpt — and YamlForge emits clean, idiomatic YAML: block-style mappings and sequences, minimal quoting, and literal block scalars (<code>|</code>) for multi-line strings so your embedded scripts and certificates stay readable.</p>
+<p>The emitter is careful about round-tripping. Strings that would change meaning in YAML get quoted automatically: anything that looks like a number, a boolean, or null (<code>"123"</code>, <code>"true"</code>, <code>"null"</code>), anything starting with a special character, and — in YAML 1.1 mode — the notorious <code>yes</code> / <code>no</code> / <code>on</code> / <code>off</code> family. That means YAML produced here parses back to identical data, which the tool's own test suite verifies on every build.</p>
+
+<h2>Multi-Document YAML Streams: One File, Many Documents</h2>
+<p>One of YAML's most underappreciated features is the document stream: a single file can hold multiple independent documents separated by <code>---</code> lines (optionally closed with <code>...</code>). Kubernetes manifests use this constantly — a Deployment, a Service, and a ConfigMap often live in one file, each its own document.</p>
+<p>Many converters choke on streams, converting only the first document and silently dropping the rest. YamlForge splits the stream first and converts <strong>each document independently</strong>. The output pane shows every document's JSON, joined by <code>---</code> separator lines for readability — or, if you prefer, as a single JSON array of documents (choose "JSON array" in the multi-doc output option). The stats bar tells you exactly how many documents were found and converted, so nothing ever disappears quietly.</p>
+
+<h2>A YAML Validator Online, Not Just a Converter</h2>
+<p>Because YAML is whitespace-sensitive, the most common bugs are invisible: a line indented one space too far, a tab character hiding among spaces, a missing colon. YamlForge validates as it converts and reports problems with surgical precision:</p>
+<ul>
+<li><strong>Line + column error highlighting.</strong> Every error carries an exact location. The input gutter marks error lines in red and warning lines in amber; clicking an error's location chip moves your cursor to the precise character.</li>
+<li><strong>Tab detection.</strong> Tabs are illegal for YAML indentation but invisible in most editors. The validator warns you the moment one appears.</li>
+<li><strong>Undefined aliases.</strong> Referencing <code>*base</code> without a matching <code>&amp;base</code> anchor is an instant, located error instead of a mysterious failure downstream.</li>
+<li><strong>Malformed flow collections.</strong> Unterminated <code>[</code> / <code>{</code> brackets and missing commas are caught with the position of the problem.</li>
+<li><strong>JSON-side validation too.</strong> In JSON → YAML mode, malformed JSON is reported with the line and column extracted from the parser error.</li>
+</ul>
+
+<h2>The YAML 1.1 Boolean Gotcha (Yes Really Means True)</h2>
+<p>Here is the trap that has bitten nearly every DevOps engineer at least once. In YAML 1.1, the following are all booleans:</p>
+<pre><code>enabled: yes     # -&gt; true, not the string "yes"
+notify: on       # -&gt; true, not the string "on"
+region: no       # -&gt; false — imagine this as an AWS region name
+confirm: off     # -&gt; false</code></pre>
+<p>The single letters <code>y</code> and <code>n</code> count too. This is not a bug in your parser — it is the specification, inherited from an era when YAML tried to be maximally clever. The result in production is configuration that looks right and behaves wrong: a feature flag set to <code>off</code> becomes boolean false instead of the string your application expected, or a country code <code>no</code> (Norway!) collapses into false.</p>
+<p>YamlForge scans every unquoted scalar and flags each occurrence with a dedicated warning badge, showing the line, the column, and what the value actually becomes. One click on <strong>"Quote all risky values"</strong> wraps every flagged scalar in quotes across your input, neutralizing the entire class of bug at once. Prefer the modern behavior instead? Switch the boolean mode to YAML 1.2 and <code>yes</code> / <code>no</code> / <code>on</code> / <code>off</code> are treated as ordinary strings, matching what parsers like Go's <code>gopkg.in/yaml.v3</code> in strict mode and most 2020s-era tooling do.</p>
+
+<h2>Duplicate Keys: The Silent Data Destroyer</h2>
+<p>Consider this innocent-looking YAML:</p>
+<pre><code>database:
+  host: db-primary
+  host: db-replica</code></pre>
+<p>Most parsers accept this without a word and keep only the last value — <code>db-replica</code> — while <code>db-primary</code> vanishes. When the duplication comes from a bad merge or a copy-paste slip, the result is data loss with zero feedback. YamlForge treats duplicate keys as a first-class warning: it names the key, gives you the line of the first definition and the line of the overwrite, and tells you plainly that the earlier value was discarded. The same check runs inside flow-style mappings (<code>{a: 1, a: 2}</code>).</p>
+
+<h2>Anchors, Aliases, and Merge Keys — Visualized</h2>
+<p>YAML's most powerful readability feature is also its most confusing. An anchor (<code>&amp;base</code>) labels a chunk of config; an alias (<code>*base</code>) reuses it elsewhere; a merge key (<code>&lt;&lt;: *base</code>) copies one mapping's keys into another. This is how teams avoid repeating the same database settings across staging and production:</p>
+<pre><code>defaults: &amp;db
+  timeout: 30
+  retries: 3
+production:
+  &lt;&lt;: *db
+  timeout: 60     # overrides only this key; retries: 3 is inherited</code></pre>
+<p>When a file grows to hundreds of lines, tracing which alias points where becomes genuinely hard. The <strong>anchor visualizer</strong> below the converter solves this: it lists every anchor with its definition line, its data type, a value preview, and clickable chips for every alias and every merge that references it. Click a chip and the cursor jumps to that exact line. If you are auditing an unfamiliar Helm chart or a sprawling CI config, this map pays for itself in minutes.</p>
+
+<h3>What the parser supports — the honest list</h3>
+<p>YamlForge implements a carefully chosen YAML subset rather than pretending to cover the entire specification. Supported: nested block mappings and sequences, plain/single-quoted/double-quoted scalars, nulls, booleans, integers, floats, hex and octal numbers, literal (<code>|</code>) and folded (<code>&gt;</code>) block scalars with chomping, single-line flow collections, anchors, aliases, merge keys, multi-document streams, and comments. Deliberately unsupported: tab indentation, <code>%</code> directives, explicit type tags, multi-line plain scalars (put the value on one line or use <code>|</code>), and multi-line flow collections. The full list lives in the "Supported YAML subset" panel above, so you always know exactly what the tool promises.</p>
+
+<h2>Real-World Uses</h2>
+<ul>
+<li><strong>Kubernetes &amp; Docker Compose:</strong> convert manifests to JSON for processing with <code>jq</code>, or turn JSON API output back into apply-ready YAML.</li>
+<li><strong>CI/CD pipelines:</strong> validate GitHub Actions or GitLab CI files before pushing — catch indentation errors locally instead of in a failed run.</li>
+<li><strong>Config audits:</strong> use the duplicate-key and boolean-gotcha warnings to sweep legacy YAML for silent misconfigurations.</li>
+<li><strong>i18n files:</strong> translation files in YAML become JSON for frontend bundles in one step.</li>
+<li><strong>Learning YAML:</strong> the visualizer and precise errors make this a genuinely good way to learn how anchors and indentation actually work.</li>
+</ul>
+
+<h2>Private by Design</h2>
+<p>Configuration files contain secrets: API keys, database passwords, internal hostnames. Uploading them to a random server for conversion is a risk you should never have to take. YamlForge performs every parse, validation, and conversion locally in your browser with JavaScript — there is no backend, no database, and no network request carrying your data anywhere. You can even disconnect from the internet after the page loads (aside from the ads) and keep converting. Your YAML never leaves your machine, full stop.</p>
+
+<h2>JSON to YAML Best Practices</h2>
+<p>A few habits make generated YAML safer: keep the YAML 1.1 boolean mode in mind when your data contains words like <code>yes</code> or <code>on</code> — the emitter quotes them for you, but knowing why saves confusion later. Prefer block style (the default here) over flow style for anything a human will edit. Use literal blocks for scripts, SQL, and certificates rather than escaped strings. And when a file holds several independent configs, embrace the multi-document stream with <code>---</code> separators instead of inventing your own wrapper object — downstream YAML tools will thank you.</p>
+<p>Whether you need a quick <strong>yaml to json converter</strong> for an API payload, a reliable <strong>json to yaml converter online</strong> for config authoring, or a strict <strong>yaml validator online</strong> that pinpoints errors to the exact character — YamlForge handles it in one free, unlimited, private page. Paste something above and see for yourself.</p>
+
+</article>
+
+<!-- ======================= FAQs ======================= -->
+<div class="mt-10">
+  <h2 class="text-2xl font-black text-white mb-5">Frequently Asked Questions</h2>
+  <div class="space-y-3">
+    <details class="faq">
+      <summary>Is YamlForge really free? Are there usage limits?</summary>
+      <div class="faq-body">Yes — completely free with unlimited usage. No signup, no paywall, no watermark on your output, and no daily conversion cap. The tool runs entirely in your browser, so there is no server cost per conversion to pass on to you.</div>
+    </details>
+    <details class="faq">
+      <summary>What is the difference between YAML and JSON?</summary>
+      <div class="faq-body">JSON is a strict, machine-first format: curly braces, square brackets, double-quoted strings, no comments. YAML is a human-first format: indentation instead of braces, optional quotes, and full comment support. They represent the same data structures (objects, arrays, strings, numbers, booleans, null), which is why lossless conversion between them is possible — and why developers constantly need a yaml to json converter when moving config into code, or a json to yaml converter online when moving data back into config files.</div>
+    </details>
+    <details class="faq">
+      <summary>Why does my YAML value "yes" become true when converted?</summary>
+      <div class="faq-body">That is the YAML 1.1 specification: the unquoted words yes, no, on, off (and even y and n) are booleans, not strings. So "enabled: yes" parses as boolean true. YamlForge flags every occurrence with a warning showing the exact line and column, and offers a one-click "Quote all risky values" fix. Alternatively, switch the boolean mode to YAML 1.2, where these words are treated as plain strings.</div>
+    </details>
+    <details class="faq">
+      <summary>How do multi-document YAML files work here?</summary>
+      <div class="faq-body">Separate documents with a line containing --- (three dashes). YamlForge splits the stream and converts each document independently — nothing is silently dropped. The JSON output joins documents with --- separator lines, or you can choose "JSON array" mode to get a single array containing every document.</div>
+    </details>
+    <details class="faq">
+      <summary>What are YAML anchors, aliases, and merge keys?</summary>
+      <div class="faq-body">An anchor (&amp;name) labels a piece of config so it can be reused; an alias (*name) inserts the anchored value elsewhere; a merge key (&lt;&lt;: *name) copies all keys of an anchored mapping into the current one. They eliminate repetition in large configs. YamlForge resolves all of them during conversion and shows an interactive visualizer mapping every anchor to its aliases and merges, with click-to-jump line navigation.</div>
+    </details>
+    <details class="faq">
+      <summary>Is my data uploaded to a server when I convert?</summary>
+      <div class="faq-body">No. All parsing, validation, and conversion happen locally in your browser using JavaScript. There is no backend, no database, and your YAML or JSON is never sent over the network. This makes the tool safe for configs containing API keys, passwords, or internal hostnames.</div>
+    </details>
+  </div>
+</div>
+</section>
+
+<!-- ======================= JSON-LD ======================= -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is YamlForge really free? Are there usage limits?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes — completely free with unlimited usage. No signup, no paywall, no watermark on your output, and no daily conversion cap. The tool runs entirely in your browser, so there is no server cost per conversion to pass on to you." }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the difference between YAML and JSON?",
+      "acceptedAnswer": { "@type": "Answer", "text": "JSON is a strict, machine-first format: curly braces, square brackets, double-quoted strings, no comments. YAML is a human-first format: indentation instead of braces, optional quotes, and full comment support. They represent the same data structures (objects, arrays, strings, numbers, booleans, null), which is why lossless conversion between them is possible." }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does my YAML value \"yes\" become true when converted?",
+      "acceptedAnswer": { "@type": "Answer", "text": "That is the YAML 1.1 specification: the unquoted words yes, no, on, off (and even y and n) are booleans, not strings. YamlForge flags every occurrence with a warning showing the exact line and column, and offers a one-click fix to quote them. YAML 1.2 mode treats these words as plain strings." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do multi-document YAML files work here?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Separate documents with a line containing --- (three dashes). YamlForge splits the stream and converts each document independently. The JSON output joins documents with --- separator lines, or you can choose JSON array mode to get a single array containing every document." }
+    },
+    {
+      "@type": "Question",
+      "name": "What are YAML anchors, aliases, and merge keys?",
+      "acceptedAnswer": { "@type": "Answer", "text": "An anchor (&name) labels a piece of config so it can be reused; an alias (*name) inserts the anchored value elsewhere; a merge key (<<: *name) copies all keys of an anchored mapping into the current one. YamlForge resolves all of them during conversion and shows an interactive visualizer mapping every anchor to its aliases and merges." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is my data uploaded to a server when I convert?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. All parsing, validation, and conversion happen locally in your browser using JavaScript. There is no backend, no database, and your YAML or JSON is never sent over the network." }
+    }
+  ]
+}
+</script>
+
+<!-- ======================= LOGIC LIB (inlined at build) ======================= -->
+<script id="v3-yamlforge-yaml-json-converter-lib">
+/* YamlForgeLogic — pure YAML-subset parser / stringifier + JSON bridge.
+ * No DOM, no window/document access. Safe to eval in Node or inline in a page.
+ *
+ * Supported YAML subset (honest list, also shown in the page UI):
+ *  - block mappings and sequences, arbitrarily nested by indentation (spaces only)
+ *  - plain, single-quoted and double-quoted scalars (basic escapes)
+ *  - null (~, null, Null, NULL, empty), booleans, integers, floats, hex (0x),
+ *    octal (0o / 0NNN), .inf / .nan
+ *  - YAML 1.1 booleans (yes/no/on/off, y/n) with gotcha warnings; YAML 1.2 mode
+ *    treats them as strings
+ *  - literal (|) and folded (>) block scalars with + / - chomping
+ *  - single-line flow collections [a, b] and {k: v} (may nest)
+ *  - anchors (&name), aliases (*name), merge keys (<<: *name)
+ *  - multi-document streams separated by --- (and ... terminators)
+ *  - full-line and trailing # comments
+ * Not supported: tabs for indentation, directives (%YAML — ignored with a
+ * warning), explicit tags (!!str), complex (? key) keys, multi-line plain
+ * scalars (keep a value on one line, or use | / >), multi-line flow
+ * collections, timestamps (kept as strings), duplicate "---" inside scalars.
+ */
+var YamlForgeLogic = (function () {
+  'use strict';
+
+  /* ============================== utilities ============================== */
+
+  function isSpace(ch) { return ch === ' ' || ch === '\t'; }
+
+  function repeatStr(s, n) {
+    var r = '';
+    for (var i = 0; i < n; i++) r += s;
+    return r;
+  }
+
+  function deepCopy(v) {
+    if (v === null || typeof v !== 'object') return v;
+    var i, k, out;
+    if (Array.isArray(v)) {
+      out = [];
+      for (i = 0; i < v.length; i++) out[i] = deepCopy(v[i]);
+      return out;
+    }
+    out = {};
+    for (k in v) {
+      if (Object.prototype.hasOwnProperty.call(v, k)) out[k] = deepCopy(v[k]);
+    }
+    return out;
+  }
+
+  function kindOf(v) {
+    if (v === null || v === undefined) return 'null';
+    if (Array.isArray(v)) return 'sequence';
+    if (typeof v === 'object') return 'mapping';
+    return typeof v;
+  }
+
+  function valuePreview(v, maxLen) {
+    maxLen = maxLen || 64;
+    var s;
+    try { s = JSON.stringify(v); } catch (e) { s = String(v); }
+    if (s === undefined) s = String(v);
+    if (s.length > maxLen) s = s.slice(0, maxLen - 1) + '…';
+    return s;
+  }
+
+  /* ============================== line model ============================= */
+
+  function splitLines(src) {
+    var raw = String(src).split(/\r\n|\r|\n/);
+    var out = [];
+    for (var i = 0; i < raw.length; i++) {
+      var line = raw[i];
+      var ind = 0, tab = false;
+      while (ind < line.length && (line[ind] === ' ' || line[ind] === '\t')) {
+        if (line[ind] === '\t') tab = true;
+        ind++;
+      }
+      out.push({ no: i + 1, raw: line, indent: ind, tabIndent: tab, rest: line.slice(ind) });
+    }
+    return out;
+  }
+
+  function isBlankLine(l) { return /^[ \t]*$/.test(l.raw); }
+
+  function skipBlanks(lines, i) {
+    while (i < lines.length && isBlankLine(lines[i])) i++;
+    return i;
+  }
+
+  /* ========================= document splitting ========================= */
+
+  function isDocStart(rest) {
+    return rest === '---' || rest.indexOf('--- ') === 0 || rest.indexOf('---\t') === 0;
+  }
+
+  function isDocEnd(rest) {
+    return rest === '...' || rest.indexOf('... ') === 0 || rest.indexOf('... \t') === 0 ||
+      rest.indexOf('...\t') === 0;
+  }
+
+  // Split a YAML stream into documents. Returns [{index, startLine, text}].
+  // startLine is the 1-based line number of the first content line of the doc.
+  function splitDocuments(src) {
+    var lines = splitLines(src);
+    var docs = [];
+    var cur = null;
+
+    function closeCur() {
+      if (!cur) return;
+      while (cur.lines.length && isBlankLine(cur.lines[cur.lines.length - 1])) cur.lines.pop();
+      var first = -1;
+      for (var k = 0; k < cur.lines.length; k++) {
+        if (!isBlankLine(cur.lines[k])) { first = k; break; }
+      }
+      if (first >= 0) {
+        cur.startLine = cur.lines[first].no;
+        cur.text = cur.lines.map(function (l) { return l.raw; }).join('\n');
+        docs.push(cur);
+      }
+      cur = null;
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      var rest = l.rest;
+      if (isDocStart(rest)) {
+        closeCur();
+        cur = { index: docs.length, startLine: l.no + 1, lines: [], text: '' };
+        var tail = rest.slice(3).replace(/^[ \t]+/, '');
+        if (tail !== '') {
+          cur.lines.push({ no: l.no, raw: tail, indent: 0, tabIndent: false, rest: tail });
+        }
+      } else if (isDocEnd(rest)) {
+        closeCur();
+      } else {
+        if (!cur) cur = { index: docs.length, startLine: l.no, lines: [], text: '' };
+        cur.lines.push(l);
+      }
+    }
+    closeCur();
+    if (!docs.length) docs.push({ index: 0, startLine: 1, lines: [], text: '' });
+    return docs;
+  }
+
+  /* ============================ comment strip ============================ */
+
+  // Cut a trailing # comment, respecting single/double quotes.
+  function stripComment(rest) {
+    var inSingle = false, inDouble = false;
+    for (var i = 0; i < rest.length; i++) {
+      var ch = rest[i];
+      if (inSingle) {
+        if (ch === "'") {
+          if (rest[i + 1] === "'") i++;
+          else inSingle = false;
+        }
+      } else if (inDouble) {
+        if (ch === '\\') i++;
+        else if (ch === '"') inDouble = false;
+      } else {
+        if (ch === "'") inSingle = true;
+        else if (ch === '"') inDouble = true;
+        else if (ch === '#' && (i === 0 || isSpace(rest[i - 1]))) return rest.slice(0, i);
+      }
+    }
+    return rest;
+  }
+
+  function isSeqItem(text) { return text === '-' || (text[0] === '-' && isSpace(text[1])); }
+
+  /* ============================== scalars ============================== */
+
+  var BOOL_TRUE_11 = { 'true': 1, 'True': 1, 'TRUE': 1 };
+  var BOOL_FALSE_11 = { 'false': 1, 'False': 1, 'FALSE': 1 };
+  // YAML 1.1 extras that surprise people — always warned about in 1.1 mode.
+  var GOTCHA_11 = {
+    'y': 1, 'Y': 1, 'yes': 1, 'Yes': 1, 'YES': 1,
+    'n': 1, 'N': 1, 'no': 1, 'No': 1, 'NO': 1,
+    'on': 1, 'On': 1, 'ON': 1, 'off': 1, 'Off': 1, 'OFF': 1
+  };
+
+  function unescapeDouble(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (ch === '\\' && i + 1 < s.length) {
+        var nx = s[i + 1];
+        if (nx === 'n') out += '\n';
+        else if (nx === 't') out += '\t';
+        else if (nx === 'r') out += '\r';
+        else if (nx === 'b') out += '\b';
+        else if (nx === 'f') out += '\f';
+        else if (nx === 'v') out += '\v';
+        else if (nx === '0') out += '\0';
+        else if (nx === 'e') out += '\x1b';
+        else if (nx === ' ') out += ' ';
+        else if (nx === '"') out += '"';
+        else if (nx === '\\') out += '\\';
+        else if (nx === '/') out += '/';
+        else if (nx === 'x' && /^[0-9a-fA-F]{2}/.test(s.slice(i + 2, i + 4))) {
+          out += String.fromCharCode(parseInt(s.slice(i + 2, i + 4), 16)); i += 2;
+        } else if (nx === 'u' && /^[0-9a-fA-F]{4}/.test(s.slice(i + 2, i + 6))) {
+          out += String.fromCharCode(parseInt(s.slice(i + 2, i + 6), 16)); i += 4;
+        } else out += nx;
+        i++;
+      } else out += ch;
+    }
+    return out;
+  }
+
+  // Parse one scalar token. ctx: {bool11, warn, error}.
+  function parseScalarToken(tok, lineNo, col, ctx) {
+    var t = tok;
+    if (t.length >= 2 && t[0] === "'" && t[t.length - 1] === "'") {
+      return t.slice(1, -1).replace(/''/g, "'");
+    }
+    if (t.length >= 2 && t[0] === '"' && t[t.length - 1] === '"') {
+      return unescapeDouble(t.slice(1, -1));
+    }
+    if ((t[0] === "'" || t[0] === '"') && t.length >= 1) {
+      ctx.error(lineNo, col, 'Unterminated quoted scalar — missing closing ' + t[0] + '.');
+      return t;
+    }
+    if (t === '' || t === '~' || t === 'null' || t === 'Null' || t === 'NULL') return null;
+    if (BOOL_TRUE_11[t]) return true;
+    if (BOOL_FALSE_11[t]) return false;
+    if (GOTCHA_11[t]) {
+      if (ctx.bool11) {
+        ctx.warn(lineNo, col, 'bool-gotcha',
+          'YAML 1.1 reads "' + t + '" as boolean ' + (/^(y|Y|yes|Yes|YES|on|On|ON)$/.test(t) ? 'true' : 'false') +
+          '. Quote it ("' + t + '") to keep a string, or switch to YAML 1.2 mode.',
+          { length: t.length, raw: t });
+        return /^(y|Y|yes|Yes|YES|on|On|ON)$/.test(t);
+      }
+      return t;
+    }
+    if (/^[+-]?0x[0-9a-fA-F]+$/.test(t)) return parseInt(t, 16);
+    var mOct = /^([+-]?)0o([0-7]+)$/.exec(t);
+    if (mOct) {
+      var ov = parseInt(mOct[2], 8);
+      return mOct[1] === '-' ? -ov : ov;
+    }
+    var mOct11 = /^([+-]?)0([0-7]+)$/.exec(t);
+    if (mOct11) {
+      var ov2 = parseInt(mOct11[2], 8);
+      return mOct11[1] === '-' ? -ov2 : ov2;
+    }
+    if (/^[+-]?\d+$/.test(t)) return parseInt(t, 10);
+    if (/^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$/.test(t)) return parseFloat(t);
+    if (/^[+-]?\d+[eE][+-]?\d+$/.test(t)) return parseFloat(t);
+    if (/^[+-]?\.(inf|Inf|INF)$/.test(t)) return t[0] === '-' ? -Infinity : Infinity;
+    if (/^\.(nan|NaN|NAN)$/.test(t)) return NaN;
+    return t;
+  }
+
+  function parseKeyToken(keyTok, lineNo, col, ctx) {
+    var t = keyTok.replace(/[ \t]+$/, '');
+    if (t.length >= 2 && ((t[0] === "'" && t[t.length - 1] === "'") ||
+        (t[0] === '"' && t[t.length - 1] === '"'))) {
+      return parseScalarToken(t, lineNo, col, ctx);
+    }
+    if (t === '' || t === '~' || t === 'null' || t === 'Null' || t === 'NULL') return 'null';
+    if (BOOL_TRUE_11[t] || BOOL_FALSE_11[t]) return t.toLowerCase();
+    if (/^[+-]?(\d+|0x[0-9a-fA-F]+)(\.\d*)?([eE][+-]?\d+)?$/.test(t)) return t;
+    return t;
+  }
+
+  // Find the "key: value" split. Returns {key, valText, valCol} or null.
+  function splitKeyValue(text) {
+    var i, key, valStart;
+    if (text[0] === '"' || text[0] === "'") {
+      var q = text[0];
+      i = 1;
+      var closed = false;
+      while (i < text.length) {
+        var ch = text[i];
+        if (q === '"' && ch === '\\') { i += 2; continue; }
+        if (ch === q) {
+          if (q === "'" && text[i + 1] === "'") { i += 2; continue; }
+          closed = true;
+          break;
+        }
+        i++;
+      }
+      if (!closed) return null;
+      key = text.slice(0, i + 1);
+      i++;
+      while (i < text.length && isSpace(text[i])) i++;
+      if (text[i] !== ':') return null;
+      valStart = i + 1;
+    } else {
+      var ci = -1;
+      for (var k = 0; k < text.length; k++) {
+        if (text[k] === ':') {
+          var nx = text[k + 1];
+          if (nx === undefined || isSpace(nx)) { ci = k; break; }
+        }
+      }
+      if (ci < 0) return null;
+      key = text.slice(0, ci);
+      valStart = ci + 1;
+    }
+    var after = text.slice(valStart);
+    var valText = after.replace(/^[ \t]+/, '');
+    var valCol = valStart + (after.length - valText.length);
+    return { key: key, valText: valText, valCol: valCol };
+  }
+
+  /* ======================= anchors / aliases / merge ======================= */
+
+  function parseAnchorPrefix(valText, lineNo, valCol, ctx) {
+    var m = /^&([A-Za-z0-9_-]+)/.exec(valText);
+    if (!m) {
+      ctx.error(lineNo, valCol, 'Invalid anchor syntax after "&" — use &name.');
+      return { name: null, rest: valText.slice(1), restCol: valCol + 1 };
+    }
+    var after = valText.slice(m[0].length);
+    var stripped = after.replace(/^[ \t]+/, '');
+    return {
+      name: m[1], nameCol: valCol + 1,
+      rest: stripped, restCol: valCol + m[0].length + (after.length - stripped.length)
+    };
+  }
+
+  function defineAnchor(ctx, name, col, lineNo, value) {
+    if (Object.prototype.hasOwnProperty.call(ctx.anchors, name)) {
+      ctx.warn(lineNo, col, 'anchor-redefine',
+        'Anchor "&' + name + '" is redefined here; the earlier definition at line ' +
+        ctx.anchors[name].line + ' is shadowed for later aliases.');
+    }
+    ctx.anchors[name] = {
+      name: name, line: lineNo, col: col,
+      kind: kindOf(value), value: deepCopy(value),
+      preview: valuePreview(value), aliases: [], merges: []
+    };
+  }
+
+  function resolveAlias(ctx, name, lineNo, col) {
+    var a = ctx.anchors[name];
+    if (!a) {
+      ctx.error(lineNo, col, 'Undefined alias "*' + name + '" — no matching "&' + name + '" found above.');
+      return { value: null, found: false };
+    }
+    // Merge-key values (<<: *name) are recorded as merges, not aliases,
+    // so the visualizer shows one clean entry instead of two.
+    if (!ctx._noAliasRecord) a.aliases.push({ line: lineNo, col: col });
+    return { value: deepCopy(a.value), found: true, anchor: a };
+  }
+
+  function applyMerge(obj, value, rawText, lineNo, col, ctx) {
+    var names = [];
+    var m, re = /\*([A-Za-z0-9_-]+)/g;
+    while ((m = re.exec(rawText)) !== null) names.push(m[1]);
+    ctx.merges.push({ line: lineNo, col: col, text: rawText, anchors: names });
+    for (var n = 0; n < names.length; n++) {
+      var a = ctx.anchors[names[n]];
+      if (a) a.merges.push({ line: lineNo, col: col });
+    }
+    var sources = Array.isArray(value) ? value : [value];
+    for (var s = 0; s < sources.length; s++) {
+      var src = sources[s];
+      if (!src || typeof src !== 'object' || Array.isArray(src)) {
+        ctx.error(lineNo, col, 'Merge key "<<" must reference a mapping (got ' + kindOf(src) + ').');
+        continue;
+      }
+      for (var k in src) {
+        if (Object.prototype.hasOwnProperty.call(src, k) &&
+            !Object.prototype.hasOwnProperty.call(obj, k)) {
+          obj[k] = deepCopy(src[k]);
+        }
+      }
+    }
+  }
+
+  /* ============================ flow parser ============================ */
+  // Single-line flow collections: [a, b, {c: d}]. Operates on one line of text.
+
+  function parseFlowValue(str, pos, lineNo, colBase, ctx) {
+    var open = str[pos];
+    var close = open === '[' ? ']' : '}';
+    var isMap = open === '{';
+    pos++;
+    var arr = [], obj = {}, seen = {};
+
+    function skipWs() { while (pos < str.length && isSpace(str[pos])) pos++; }
+
+    skipWs();
+    if (str[pos] === close) return { value: isMap ? {} : [], pos: pos + 1 };
+    for (;;) {
+      skipWs();
+      var key = null;
+      if (isMap) {
+        var kr = parseFlowScalar(str, pos, lineNo, colBase, ctx);
+        key = String(kr.value);
+        pos = kr.pos;
+        skipWs();
+        if (str[pos] !== ':') {
+          return { value: obj, pos: pos, error: 'Expected ":" after key in flow mapping.', errorPos: pos };
+        }
+        pos++;
+        skipWs();
+      }
+      var vr = parseFlowNode(str, pos, lineNo, colBase, ctx);
+      pos = vr.pos;
+      if (isMap) {
+        if (Object.prototype.hasOwnProperty.call(seen, key)) {
+          ctx.warn(lineNo, colBase + pos, 'duplicate-key',
+            'Duplicate key "' + key + '" in flow mapping — the earlier value is overwritten.');
+        }
+        seen[key] = 1;
+        obj[key] = vr.value;
+      } else {
+        arr.push(vr.value);
+      }
+      skipWs();
+      if (str[pos] === ',') { pos++; continue; }
+      if (str[pos] === close) return { value: isMap ? obj : arr, pos: pos + 1 };
+      if (pos >= str.length) {
+        return { value: isMap ? obj : arr, pos: pos, error: 'Unterminated flow collection — missing "' + close + '".', errorPos: pos };
+      }
+      return { value: isMap ? obj : arr, pos: pos, error: 'Expected "," or "' + close + '" in flow collection.', errorPos: pos };
+    }
+  }
+
+  function parseFlowNode(str, pos, lineNo, colBase, ctx) {
+    var ch = str[pos];
+    if (ch === '[' || ch === '{') return parseFlowValue(str, pos, lineNo, colBase, ctx);
+    if (ch === '*') {
+      var m = /^\*([A-Za-z0-9_-]+)/.exec(str.slice(pos));
+      if (!m) {
+        ctx.error(lineNo, colBase + pos, 'Invalid alias syntax after "*".');
+        return { value: null, pos: pos + 1 };
+      }
+      var r = resolveAlias(ctx, m[1], lineNo, colBase + pos);
+      return { value: r.value, pos: pos + m[0].length };
+    }
+    if (ch === '&') {
+      ctx.error(lineNo, colBase + pos, 'Anchors inside flow collections are not supported in this subset.');
+      return { value: null, pos: pos + 1 };
+    }
+    return parseFlowScalar(str, pos, lineNo, colBase, ctx);
+  }
+
+  function parseFlowScalar(str, pos, lineNo, colBase, ctx) {
+    while (pos < str.length && isSpace(str[pos])) pos++;
+    var start = pos;
+    var ch = str[pos];
+    if (ch === '"' || ch === "'") {
+      var q = ch;
+      pos++;
+      var buf = '';
+      var closed = false;
+      while (pos < str.length) {
+        var c = str[pos];
+        if (q === '"' && c === '\\') {
+          buf += c + (str[pos + 1] || '');
+          pos += 2;
+          continue;
+        }
+        if (c === q) {
+          if (q === "'" && str[pos + 1] === "'") { buf += "''"; pos += 2; continue; }
+          closed = true;
+          pos++;
+          break;
+        }
+        buf += c;
+        pos++;
+      }
+      if (!closed) ctx.error(lineNo, colBase + start, 'Unterminated quoted scalar in flow collection.');
+      var tok = q + buf + (closed ? q : '');
+      return { value: parseScalarToken(tok, lineNo, colBase + start, ctx), pos: pos };
+    }
+    var end = pos;
+    while (end < str.length) {
+      var e = str[end];
+      if (e === ',' || e === ']' || e === '}') break;
+      if (e === ':') {
+        var nx = str[end + 1];
+        if (nx === undefined || isSpace(nx) || nx === ',' || nx === ']' || nx === '}') break;
+      }
+      if (e === '#') break; // never valid unquoted in flow; stop so caller reports
+      end++;
+    }
+    var tok2 = str.slice(pos, end).replace(/[ \t]+$/, '');
+    return { value: parseScalarToken(tok2, lineNo, colBase + start, ctx), pos: end };
+  }
+
+  /* ============================ block scalars ============================ */
+
+  function parseBlockScalar(lines, idx, pairIndent, indicator, lineNo, ctx) {
+    var m = /^([|>])([+-]?\d*|\d*[+-]?)$/.exec(indicator.replace(/[ \t]+$/, ''));
+    if (!m) {
+      ctx.error(lineNo, 1, 'Invalid block scalar header "' + indicator + '" — use | or > with optional + / - chomping.');
+      return { value: '', next: idx + 1 };
+    }
+    var style = m[1];
+    var chomp = 'clip', indentHint = 0;
+    var dm = /(\d)/.exec(m[2]);
+    if (dm) indentHint = parseInt(dm[1], 10);
+    var cm = /([+-])/.exec(m[2]);
+    if (cm) chomp = cm[1] === '+' ? 'keep' : 'strip';
+
+    var j = idx + 1;
+    var content = [];
+    var blockIndent = 0;
+    while (j < lines.length) {
+      var l = lines[j];
+      if (isBlankLine(l)) { content.push({ blank: true }); j++; continue; }
+      if (indentHint > 0) {
+        if (l.indent !== pairIndent + indentHint) break;
+      } else {
+        if (l.indent <= pairIndent) break;
+      }
+      if (blockIndent === 0) blockIndent = l.indent;
+      if (!indentHint && l.indent < blockIndent) break;
+      content.push({ blank: false, text: l.raw.slice(blockIndent) });
+      j++;
+    }
+
+    var out;
+    if (style === '|') {
+      out = content.map(function (c) { return c.blank ? '' : c.text; }).join('\n');
+    } else {
+      var paras = [], cur = [];
+      content.forEach(function (c) {
+        if (c.blank) {
+          if (cur.length) { paras.push(cur.join(' ')); cur = []; }
+          paras.push('');
+        } else cur.push(c.text);
+      });
+      if (cur.length) paras.push(cur.join(' '));
+      out = paras.join('\n').replace(/\n{3,}/g, '\n\n');
+    }
+    if (chomp === 'strip') out = out.replace(/\n+$/, '');
+    else if (chomp === 'clip') out = out.replace(/\n+$/, '') + (content.length ? '\n' : '');
+    else if (content.length && out.charAt(out.length - 1) !== '\n') out += '\n';
+    return { value: out, next: j };
+  }
+
+  /* ============================ block parser ============================ */
+
+  function parseInlineValue(lines, idx, lineNo, pairIndent, valText, valCol, ctx) {
+    // returns {value, next}
+    var anchorName = null, anchorCol = 0;
+    if (valText.charAt(0) === '&') {
+      var ap = parseAnchorPrefix(valText, lineNo, valCol, ctx);
+      if (ap.name === null) return { value: null, next: idx + 1 };
+      anchorName = ap.name;
+      anchorCol = ap.nameCol;
+      valText = ap.rest;
+      valCol = ap.restCol;
+    }
+    var v;
+    if (valText.charAt(0) === '*') {
+      var am = /^\*([A-Za-z0-9_-]+)/.exec(valText);
+      if (!am) {
+        ctx.error(lineNo, valCol, 'Invalid alias syntax after "*".');
+        v = null;
+      } else {
+        var tail = valText.slice(am[0].length);
+        if (tail.replace(/[ \t]+$/, '') !== '') {
+          ctx.error(lineNo, valCol + am[0].length, 'Unexpected text after alias "*' + am[1] + '".');
+        }
+        v = resolveAlias(ctx, am[1], lineNo, valCol).value;
+      }
+      if (anchorName) defineAnchor(ctx, anchorName, anchorCol, lineNo, v);
+      return { value: v, next: idx + 1, anchorName: anchorName };
+    }
+    if (/^[|>]/.test(valText)) {
+      var bs = parseBlockScalar(lines, idx, pairIndent, valText, lineNo, ctx);
+      if (anchorName) defineAnchor(ctx, anchorName, anchorCol, lineNo, bs.value);
+      return { value: bs.value, next: bs.next, anchorName: anchorName };
+    }
+    if (valText.charAt(0) === '[' || valText.charAt(0) === '{') {
+      var fr = parseFlowValue(valText, 0, lineNo, valCol, ctx);
+      if (fr.error) ctx.error(lineNo, valCol + fr.errorPos, fr.error);
+      else if (fr.pos < valText.replace(/[ \t]+$/, '').length) {
+        ctx.error(lineNo, valCol + fr.pos, 'Unexpected text after flow collection.');
+      }
+      if (anchorName) defineAnchor(ctx, anchorName, anchorCol, lineNo, fr.value);
+      return { value: fr.value, next: idx + 1, anchorName: anchorName };
+    }
+    if (valText === '') {
+      var b = parseBlock(lines, idx + 1, pairIndent + 1, ctx);
+      if (anchorName) defineAnchor(ctx, anchorName, anchorCol, lineNo, b.value);
+      return { value: b.value, next: b.next, anchorName: anchorName };
+    }
+    v = parseScalarToken(valText, lineNo, valCol, ctx);
+    if (anchorName) defineAnchor(ctx, anchorName, anchorCol, lineNo, v);
+    return { value: v, next: idx + 1, anchorName: anchorName };
+  }
+
+  // Parse one "key: value" pair. idx = index of the pair's own line.
+  function parseMapPair(line, text, col, idx, lines, pairIndent, ctx) {
+    var kv = splitKeyValue(text);
+    if (!kv) {
+      ctx.error(line.no, col, 'Expected "key: value" — no colon found on this mapping line.');
+      return { skip: true, next: idx + 1 };
+    }
+    var key = parseKeyToken(kv.key, line.no, col, ctx);
+    var valText = kv.valText;
+    var valCol = col + kv.valCol;
+    var r;
+    if (String(key) === '<<') {
+      // Merge key: resolve the value but record it as a merge (not an alias use).
+      ctx._noAliasRecord = true;
+      try {
+        r = parseInlineValue(lines, idx, line.no, pairIndent, valText, valCol, ctx);
+      } finally {
+        ctx._noAliasRecord = false;
+      }
+    } else {
+      r = parseInlineValue(lines, idx, line.no, pairIndent, valText, valCol, ctx);
+    }
+    return { key: key, value: r.value, next: r.next, rawValText: valText, anchorName: r.anchorName, isMerge: String(key) === '<<' };
+  }
+
+  function parseMap(lines, i, mapIndent, ctx, seed) {
+    var obj = {};
+    var seen = {};
+    var pending = seed || null;
+    for (;;) {
+      var line, text, col, idx, pIndent;
+      if (pending) {
+        line = pending.line; text = pending.text; col = pending.col;
+        idx = pending.idx; pIndent = pending.pairIndent;
+        pending = null;
+      } else {
+        i = skipBlanks(lines, i);
+        if (i >= lines.length) break;
+        line = lines[i];
+        if (line.indent < mapIndent) break;
+        if (line.indent > mapIndent) {
+          ctx.error(line.no, line.indent + 1,
+            'Over-indented line — this mapping expects indent ' + mapIndent + '.');
+          i++;
+          continue;
+        }
+        var t = stripComment(line.rest).replace(/[ \t]+$/, '');
+        if (t === '') { i++; continue; }
+        if (isSeqItem(t)) break;
+        if (isDocStart(line.rest) || isDocEnd(line.rest)) break;
+        text = t; col = line.indent + 1; idx = i; pIndent = mapIndent;
+      }
+      var pr = parseMapPair(line, text, col, idx, lines, pIndent, ctx);
+      i = pr.next;
+      if (pr.skip) continue;
+      if (String(pr.key) === '<<') {
+        applyMerge(obj, pr.value, pr.rawValText, line.no, col, ctx);
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(seen, pr.key)) {
+        ctx.warn(line.no, col, 'duplicate-key',
+          'Duplicate key "' + pr.key + '" — first defined at line ' + seen[pr.key] +
+          '; the earlier value is overwritten (data loss).',
+          { firstLine: seen[pr.key] });
+      } else {
+        seen[pr.key] = line.no;
+      }
+      obj[pr.key] = pr.value;
+    }
+    return { value: obj, next: i };
+  }
+
+  function parseSeqItemValue(lines, idx, dashIndent, itemText, itemCol, ctx) {
+    var line = lines[idx];
+    if (itemText === '') {
+      var b = parseBlock(lines, idx + 1, dashIndent + 1, ctx);
+      return { value: b.value, next: b.next };
+    }
+    if (isSeqItem(itemText)) {
+      var after0 = itemText.slice(1);
+      var after = after0.replace(/^[ \t]+/, '');
+      var acol = itemCol + 1 + (after0.length - after.length);
+      return parseSeq(lines, idx, dashIndent + 2, ctx,
+        { line: line, text: after, col: acol, idx: idx });
+    }
+    if (splitKeyValue(itemText)) {
+      var m = parseMap(lines, idx, dashIndent + 2, ctx,
+        { line: line, text: itemText, col: itemCol, idx: idx, pairIndent: dashIndent });
+      return { value: m.value, next: m.next };
+    }
+    var r = parseInlineValue(lines, idx, line.no, dashIndent + 1, itemText, itemCol, ctx);
+    return { value: r.value, next: r.next };
+  }
+
+  function parseSeq(lines, i, indent, ctx, seed) {
+    var items = [];
+    var pending = seed || null;
+    for (;;) {
+      var line, text, col, idx;
+      if (pending) {
+        line = pending.line; text = pending.text; col = pending.col; idx = pending.idx;
+        pending = null;
+      } else {
+        i = skipBlanks(lines, i);
+        if (i >= lines.length) break;
+        line = lines[i];
+        if (line.indent < indent) break;
+        if (line.indent > indent) {
+          ctx.error(line.no, line.indent + 1,
+            'Over-indented sequence item — this list expects indent ' + indent + '.');
+          i++;
+          continue;
+        }
+        var t = stripComment(line.rest).replace(/[ \t]+$/, '');
+        if (t === '') { i++; continue; }
+        if (!isSeqItem(t)) break;
+        var after0 = t.slice(1);
+        text = after0.replace(/^[ \t]+/, '');
+        col = line.indent + 1 + (after0.length - text.length) + 1;
+        idx = i;
+      }
+      var r = parseSeqItemValue(lines, idx, indent, text, col, ctx);
+      items.push(r.value);
+      i = r.next;
+    }
+    return { value: items, next: i };
+  }
+
+  function parseBlock(lines, i, minIndent, ctx) {
+    i = skipBlanks(lines, i);
+    if (i >= lines.length) return { value: null, next: i, empty: true };
+    var line = lines[i];
+    if (line.indent < minIndent) return { value: null, next: i, empty: true };
+    if (line.tabIndent) {
+      ctx.warn(line.no, 1, 'tab-indent',
+        'Tab character used for indentation — YAML requires spaces; parsing continues but output may surprise you.');
+    }
+    var text = stripComment(line.rest).replace(/[ \t]+$/, '');
+    if (text === '') return parseBlock(lines, i + 1, minIndent, ctx);
+    if (isDocStart(line.rest) || isDocEnd(line.rest)) return { value: null, next: i, empty: true };
+    var col = line.indent + 1;
+    if (isSeqItem(text)) return parseSeq(lines, i, line.indent, ctx, null);
+    if (text.charAt(0) === '[' || text.charAt(0) === '{') {
+      var fr = parseFlowValue(text, 0, line.no, col, ctx);
+      if (fr.error) ctx.error(line.no, col + fr.errorPos, fr.error);
+      return { value: fr.value, next: i + 1 };
+    }
+    if (text.charAt(0) === '&' || text.charAt(0) === '*') {
+      var ar = parseInlineValue(lines, i, line.no, line.indent, text, col, ctx);
+      return { value: ar.value, next: ar.next };
+    }
+    if (!splitKeyValue(text)) {
+      var s = parseScalarToken(text, line.no, col, ctx);
+      return { value: s, next: i + 1 };
+    }
+    return parseMap(lines, i, line.indent, ctx, null);
+  }
+
+  /* ========================= document parsing ========================= */
+
+  function parseDocumentText(text, lineOffset, opts) {
+    var warnings = [], errors = [], anchors = {}, merges = [];
+    var use12 = !!(opts && opts.yamlVersion === '1.2');
+    var ctx = {
+      bool11: !use12,
+      warn: function (l, c, code, msg, extra) {
+        var w = { line: l, column: c, code: code, message: msg };
+        if (extra) {
+          for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) w[k] = extra[k];
+          }
+        }
+        warnings.push(w);
+      },
+      error: function (l, c, msg) { errors.push({ line: l, column: c, message: msg }); },
+      anchors: anchors,
+      merges: merges
+    };
+    var lines = splitLines(text);
+    for (var i = 0; i < lines.length; i++) {
+      lines[i].no += lineOffset;
+      if (lines[i].rest.charAt(0) === '%') {
+        ctx.warn(lines[i].no, 1, 'directive',
+          'YAML directives (lines starting with %) are not supported and were ignored.');
+        lines[i] = { no: lines[i].no, raw: lines[i].raw, indent: 0, tabIndent: false, rest: '' };
+      }
+    }
+    var r = parseBlock(lines, 0, 0, ctx);
+    var j = skipBlanks(lines, r.next);
+    if (j < lines.length) {
+      ctx.error(lines[j].no, lines[j].indent + 1,
+        'Unexpected content after the end of the document — check indentation of the lines above.');
+    }
+    var anchorList = [];
+    for (var name in anchors) {
+      if (Object.prototype.hasOwnProperty.call(anchors, name)) anchorList.push(anchors[name]);
+    }
+    anchorList.sort(function (a, b) { return a.line - b.line; });
+    return { value: r.value, errors: errors, warnings: warnings, anchors: anchorList, merges: merges };
+  }
+
+  function validateYaml(src, opts) {
+    var docs = splitDocuments(src);
+    var errors = [], warnings = [], values = [], anchorGraphs = [];
+    docs.forEach(function (d) {
+      var r = parseDocumentText(d.text, d.startLine - 1, opts);
+      errors = errors.concat(r.errors);
+      warnings = warnings.concat(r.warnings);
+      values.push(r.value);
+      anchorGraphs.push({ index: d.index, startLine: d.startLine, anchors: r.anchors, merges: r.merges });
+    });
+    return {
+      ok: errors.length === 0, docCount: docs.length,
+      values: values, errors: errors, warnings: warnings,
+      anchors: anchorGraphs, docs: docs
+    };
+  }
+
+  /* ============================ JSON bridge ============================ */
+
+  function extractJsonLineCol(src, msg) {
+    var m = /line (\d+) column (\d+)/i.exec(msg) || /\b(\d+):(\d+)\b/.exec(msg);
+    if (m) return { line: parseInt(m[1], 10), column: parseInt(m[2], 10) };
+    var p = /position (\d+)/i.exec(msg);
+    if (p) {
+      var pos = parseInt(p[1], 10);
+      var upto = String(src).slice(0, pos);
+      var parts = upto.split('\n');
+      return { line: parts.length, column: parts[parts.length - 1].length + 1 };
+    }
+    return { line: 1, column: 1 };
+  }
+
+  function parseJsonText(src) {
+    try {
+      return { ok: true, value: JSON.parse(src) };
+    } catch (e) {
+      var msg = (e && e.message) ? e.message : String(e);
+      var lc = extractJsonLineCol(src, msg);
+      return {
+        ok: false,
+        error: { line: lc.line, column: lc.column, message: 'Invalid JSON: ' + msg }
+      };
+    }
+  }
+
+  /* ========================= YAML stringifier ========================= */
+
+  function isComplex(v) { return v !== null && typeof v === 'object'; }
+
+  function quoteDouble(s) {
+    return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"';
+  }
+
+  function needsYamlQuotes(s, v12) {
+    if (s === '') return true;
+    if (/^\s/.test(s) || /\s$/.test(s)) return true;
+    if (/^(~|null|Null|NULL|true|True|TRUE|false|False|FALSE)$/.test(s)) return true;
+    if (!v12 && /^(y|Y|yes|Yes|YES|n|N|no|No|NO|on|On|ON|off|Off|OFF)$/.test(s)) return true;
+    if (/^[+-]?(\d+|0x[0-9a-fA-F]+|0o[0-7]+|0[0-7]+)(\.\d*)?([eE][+-]?\d+)?$/.test(s)) return true;
+    if (/^\.(\d+)([eE][+-]?\d+)?$/.test(s)) return true;
+    if (/^[+-]?\.(inf|Inf|INF)$/.test(s) || /^\.(nan|NaN|NAN)$/.test(s)) return true;
+    if (s === '<<' || s === '-' || s === '?' || s === ':') return true;
+    if (/^[-?:,[\]{}#&*!|>'"%@`]/.test(s)) return true;
+    if (/[\[\]{},]/.test(s)) return true;
+    if (/: $/.test(s) || /:$/.test(s) || / #/.test(s)) return true;
+    if (/^- /.test(s) || /^\? /.test(s)) return true;
+    return false;
+  }
+
+  function dumpYamlString(s, v12, level, indent) {
+    if (s.indexOf('\n') >= 0) {
+      var bodyIndent = repeatStr(' ', (level + 1) * indent);
+      var lines = s.split('\n');
+      var body = lines.map(function (l) { return bodyIndent + l; }).join('\n');
+      if (s.charAt(s.length - 1) === '\n') return '|+\n' + body;
+      return '|\n' + body;
+    }
+    if (needsYamlQuotes(s, v12)) return quoteDouble(s);
+    return s;
+  }
+
+  function dumpYamlKey(key, v12) {
+    var s = String(key);
+    if (needsYamlQuotes(s, v12)) return quoteDouble(s);
+    return s;
+  }
+
+  function dumpYamlNode(v, level, indent, v12) {
+    var pad = repeatStr(' ', level * indent);
+    if (v === null || v === undefined) return 'null';
+    if (typeof v === 'boolean') return v ? 'true' : 'false';
+    if (typeof v === 'number') {
+      if (isNaN(v)) return '.nan';
+      if (!isFinite(v)) return v > 0 ? '.inf' : '-.inf';
+      return String(v);
+    }
+    if (typeof v === 'string') return dumpYamlString(v, v12, level, indent);
+    var i, k, keys, out, sub, lines, firstPad, first;
+    if (Array.isArray(v)) {
+      if (v.length === 0) return '[]';
+      out = [];
+      for (i = 0; i < v.length; i++) {
+        var item = v[i];
+        if (isComplex(item)) {
+          sub = dumpYamlNode(item, level + 1, indent, v12);
+          lines = sub.split('\n');
+          firstPad = repeatStr(' ', (level + 1) * indent);
+          first = lines[0];
+          if (first.indexOf(firstPad) === 0) first = pad + '- ' + first.slice(firstPad.length);
+          else first = pad + '- ' + first.replace(/^\s*/, '');
+          out.push(first + '\n' + lines.slice(1).join('\n'));
+        } else {
+          sub = dumpYamlNode(item, level, indent, v12);
+          if (typeof item === 'string' && item.indexOf('\n') >= 0) {
+            out.push(pad + '- ' + sub.replace(/\n/g, '\n' + pad + '  '));
+          } else {
+            out.push(pad + '- ' + sub);
+          }
+        }
+      }
+      return out.join('\n');
+    }
+    keys = Object.keys(v);
+    if (keys.length === 0) return '{}';
+    out = [];
+    for (k = 0; k < keys.length; k++) {
+      var ks = dumpYamlKey(keys[k], v12);
+      var val = v[keys[k]];
+      if (isComplex(val)) {
+        out.push(pad + ks + ':\n' + dumpYamlNode(val, level + 1, indent, v12));
+      } else {
+        out.push(pad + ks + ': ' + dumpYamlNode(val, level, indent, v12));
+      }
+    }
+    return out.join('\n');
+  }
+
+  function stringifyYaml(value, opts) {
+    opts = opts || {};
+    var indent = opts.indent === undefined ? 2 : opts.indent;
+    if (indent < 1 || indent > 8) indent = 2;
+    var v12 = opts.yamlVersion === '1.2';
+    return dumpYamlNode(value, 0, indent, v12) + '\n';
+  }
+
+  /* ============================ conversions ============================ */
+
+  function convertYamlToJson(src, opts) {
+    opts = opts || {};
+    var v = validateYaml(src, opts);
+    var jsonIndent = opts.jsonIndent === undefined ? 2 : opts.jsonIndent;
+    var jsons = v.values.map(function (val) {
+      return JSON.stringify(val === undefined ? null : val, null, jsonIndent);
+    });
+    var out;
+    if (v.docCount <= 1) out = jsons[0] === undefined ? 'null' : jsons[0];
+    else if (opts.multiDoc === 'array') out = JSON.stringify(v.values, null, jsonIndent);
+    else out = jsons.join('\n---\n');
+    return {
+      ok: v.ok, json: v.ok ? out : '',
+      values: v.values, errors: v.errors, warnings: v.warnings,
+      docCount: v.docCount, anchors: v.anchors
+    };
+  }
+
+  function convertJsonToYaml(src, opts) {
+    opts = opts || {};
+    var docs = splitDocuments(src);
+    var errors = [], warnings = [], yamls = [], values = [];
+    docs.forEach(function (d, di) {
+      var text = d.text.replace(/^[ \t\n\r]+/, '').replace(/[ \t\n\r]+$/, '');
+      if (text === '') {
+        yamls.push('# (empty document ' + (di + 1) + ' — skipped)');
+        values.push(null);
+        return;
+      }
+      var r = parseJsonText(text);
+      if (!r.ok) {
+        errors.push({
+          line: r.error.line + d.startLine - 1,
+          column: r.error.column,
+          message: r.error.message + ' (document ' + (di + 1) + ')'
+        });
+        return;
+      }
+      values.push(r.value);
+      yamls.push(stringifyYaml(r.value, opts).replace(/\n$/, ''));
+    });
+    return {
+      ok: errors.length === 0,
+      yaml: errors.length ? '' : yamls.join('\n---\n'),
+      values: values, errors: errors, warnings: warnings, docCount: docs.length
+    };
+  }
+
+  /* ============================== public API ============================== */
+
+  var SUPPORTED_SUBSET = [
+    'Block mappings and sequences, nested by indentation (spaces only)',
+    'Plain, single-quoted and double-quoted scalars with basic escapes',
+    'null (~, null, empty), booleans, integers, floats, hex (0x), octal (0o / 0NNN), .inf / .nan',
+    'YAML 1.1 booleans (yes/no/on/off, y/n) — flagged with warnings; YAML 1.2 mode keeps them as strings',
+    'Literal (|) and folded (>) block scalars with + / - chomping',
+    'Single-line flow collections: [a, b] and {k: v}, nestable',
+    'Anchors (&name), aliases (*name) and merge keys (<<: *name)',
+    'Multi-document streams split on --- (with ... terminators)',
+    'Full-line and trailing # comments',
+    'Not supported: tab indentation, % directives, !! tags, complex (? k) keys, multi-line plain scalars, multi-line flow, timestamps (kept as strings)'
+  ];
+
+  return {
+    splitDocuments: splitDocuments,
+    parseDocument: function (text, opts) { return parseDocumentText(text, 0, opts); },
+    validateYaml: validateYaml,
+    yamlToJson: convertYamlToJson,
+    jsonToYaml: convertJsonToYaml,
+    parseJson: parseJsonText,
+    stringifyYaml: stringifyYaml,
+    stringifyJson: function (v, indent) {
+      return JSON.stringify(v, null, indent === undefined ? 2 : indent);
+    },
+    valuePreview: valuePreview,
+    SUPPORTED_SUBSET: SUPPORTED_SUBSET,
+    VERSION: '1.0.0'
+  };
+})();
+
+</script>
+
+<!-- ======================= UI WIRING (not part of the lib) ======================= -->
+<script>
+(function () {
+  'use strict';
+  var YF = YamlForgeLogic;
+  var direction = 'y2j'; // 'y2j' | 'j2y'
+  var lastResult = null;
+  var debounceT = null;
+
+  function $(id) { return document.getElementById(id); }
+  var input = $('yf-input'), gutter = $('yf-gutter'), output = $('yf-output');
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* ---------------- samples ---------------- */
+  var SAMPLE_YAML = [
+    '# YamlForge sample — try converting this',
+    'app:',
+    '  name: SampleApp',
+    '  version: 1.4.2',
+    '  debug: no              # YAML 1.1 gotcha: becomes false, not "no"',
+    '  retries: 3',
+    'defaults: &base',
+    '  timeout: 30',
+    '  retries: 3',
+    'production:',
+    '  <<: *base              # merge: inherits timeout + retries',
+    '  timeout: 60',
+    'servers:',
+    '  - host: web-1',
+    '    port: 8080',
+    '  - host: web-2',
+    '    port: 8080',
+    'ports: [80, 443, 8080]',
+    'notes: |',
+    '  Deployed via YamlForge.',
+    '  Multi-line stays readable.',
+    '---',
+    '# second document in the stream',
+    'env: staging',
+    'feature_flags:',
+    '  new_ui: yes            # gotcha: becomes true',
+    '  dark_mode: off         # gotcha: becomes false'
+  ].join('\n');
+
+  var SAMPLE_JSON = [
+    '{',
+    '  "app": {',
+    '    "name": "SampleApp",',
+    '    "version": "1.4.2",',
+    '    "debug": false,',
+    '    "retries": 3',
+    '  },',
+    '  "servers": ["web-1", "web-2"],',
+    '  "ports": [80, 443, 8080],',
+    '  "notes": "Multi-line\\nstrings become\\nliteral blocks."',
+    '}'
+  ].join('\n');
+
+  /* ---------------- options ---------------- */
+  function opts() {
+    return {
+      yamlVersion: $('yf-yaml-version').value,
+      jsonIndent: parseInt($('yf-json-indent').value, 10),
+      indent: parseInt($('yf-yaml-indent').value, 10),
+      multiDoc: $('yf-multidoc-mode').value
+    };
+  }
+
+  /* ---------------- conversion ---------------- */
+  function convert() {
+    var src = input.value;
+    var o = opts();
+    var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    var res;
+    if (direction === 'y2j') {
+      res = YF.yamlToJson(src, o);
+    } else {
+      res = YF.jsonToYaml(src, o);
+    }
+    var t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    res.ms = Math.max(1, Math.round(t1 - t0));
+    lastResult = res;
+    render(res, o);
+  }
+
+  function render(res, o) {
+    // output
+    output.textContent = res.ok ? (direction === 'y2j' ? res.json : res.yaml) :
+      '— fix the errors below, then convert again —';
+    // status
+    var st = $('yf-status');
+    if (!input.value.trim()) {
+      st.textContent = '';
+    } else if (res.ok && res.errors.length === 0) {
+      st.innerHTML = '<span class="text-[#6ee7b7]">✓ Valid — ' + res.docCount +
+        (res.docCount === 1 ? ' document' : ' documents') + '</span>';
+    } else {
+      st.innerHTML = '<span class="text-[#fca5a5]">✗ ' + res.errors.length +
+        (res.errors.length === 1 ? ' error' : ' errors') + '</span>';
+    }
+    renderGutter(res);
+    renderErrors(res.errors);
+    renderWarnings(res.warnings);
+    renderAnchors(res);
+    var warnN = res.warnings.length, errN = res.errors.length;
+    $('yf-stats').textContent = res.docCount + (res.docCount === 1 ? ' doc' : ' docs') +
+      ' · ' + res.ms + ' ms' +
+      (errN ? ' · ' + errN + ' err' : '') + (warnN ? ' · ' + warnN + ' warn' : '');
+  }
+
+  /* ---------------- gutter + jump ---------------- */
+  function renderGutter(res) {
+    var lines = input.value.split('\n');
+    var errLines = {}, warnLines = {};
+    res.errors.forEach(function (e) { errLines[e.line] = true; });
+    res.warnings.forEach(function (w) { warnLines[w.line] = true; });
+    var html = '';
+    for (var i = 1; i <= lines.length; i++) {
+      var cls = errLines[i] ? 'g-err' : (warnLines[i] ? 'g-warn' : '');
+      html += '<div data-ln="' + i + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + i + '</div>';
+    }
+    gutter.innerHTML = html;
+    syncGutter();
+  }
+
+  function syncGutter() {
+    gutter.scrollTop = input.scrollTop;
+  }
+
+  function lineOffset(line, col) {
+    var lines = input.value.split('\n');
+    var off = 0;
+    for (var i = 0; i < line - 1 && i < lines.length; i++) off += lines[i].length + 1;
+    return off + Math.max(0, (col || 1) - 1);
+  }
+
+  function jumpTo(line, col) {
+    var off = lineOffset(line, col);
+    input.focus();
+    try { input.setSelectionRange(off, off); } catch (e) { /* older browsers */ }
+    // scroll the textarea so the line is roughly visible
+    var lh = 20; // approx line height px (matches .82rem * 1.55)
+    input.scrollTop = Math.max(0, (line - 4) * lh);
+    syncGutter();
+    var row = gutter.querySelector('[data-ln="' + line + '"]');
+    if (row) {
+      row.classList.remove('flash');
+      void row.offsetWidth;
+      row.classList.add('flash');
+    }
+  }
+
+  /* ---------------- diagnostics ---------------- */
+  function locChip(e) {
+    return '<button class="chip-loc" data-line="' + e.line + '" data-col="' + (e.column || 1) +
+      '" title="Jump to line ' + e.line + ', column ' + (e.column || 1) + '">L' + e.line + ':C' + (e.column || 1) + '</button>';
+  }
+
+  function renderErrors(errors) {
+    var box = $('yf-errors');
+    $('yf-err-count').textContent = errors.length ? '(' + errors.length + ')' : '';
+    if (!errors.length) {
+      box.innerHTML = '<p class="text-[#5b6774] text-xs">No errors. Convert something to validate it.</p>';
+      return;
+    }
+    box.innerHTML = errors.map(function (e) {
+      return '<div class="err-card rounded-r-lg p-3 flex items-start gap-3">' +
+        '<span class="flex-none mt-0.5">' + locChip(e) + '</span>' +
+        '<span class="text-[#e8edf2]">' + esc(e.message) + '</span></div>';
+    }).join('');
+  }
+
+  function warnTag(code) {
+    if (code === 'bool-gotcha') return '<span class="tag-code tag-gotcha">bool gotcha</span>';
+    if (code === 'duplicate-key') return '<span class="tag-code tag-dup">dup key</span>';
+    return '<span class="tag-code tag-info">note</span>';
+  }
+
+  function renderWarnings(warnings) {
+    var box = $('yf-warnings');
+    $('yf-warn-count').textContent = warnings.length ? '(' + warnings.length + ')' : '';
+    var hasGotcha = warnings.some(function (w) { return w.code === 'bool-gotcha'; });
+    $('yf-quote-gotchas').classList.toggle('hidden', !hasGotcha);
+    if (!warnings.length) {
+      box.innerHTML = '<p class="text-[#5b6774] text-xs">Warnings (duplicate keys, YAML 1.1 boolean gotchas…) appear here.</p>';
+      return;
+    }
+    box.innerHTML = warnings.map(function (w) {
+      return '<div class="warn-card rounded-r-lg p-3 flex items-start gap-3">' +
+        '<span class="flex-none mt-0.5">' + locChip(w) + '</span>' +
+        '<span class="flex-none mt-0.5">' + warnTag(w.code) + '</span>' +
+        '<span class="text-[#c9d3dc]">' + esc(w.message) + '</span></div>';
+    }).join('');
+  }
+
+  /* ---------------- anchor visualizer ---------------- */
+  function renderAnchors(res) {
+    var box = $('yf-anchor-viz');
+    var graphs = res.anchors || [];
+    var cards = [];
+    graphs.forEach(function (g, gi) {
+      (g.anchors || []).forEach(function (a) {
+        var chips = '';
+        a.aliases.forEach(function (al) {
+          chips += '<button class="chip-loc" data-line="' + al.line + '" data-col="' + al.col +
+            '" title="Alias *' + esc(a.name) + ' used here">*' + esc(a.name) + ' @L' + al.line + '</button> ';
+        });
+        a.merges.forEach(function (mg) {
+          chips += '<button class="chip-loc" data-line="' + mg.line + '" data-col="' + mg.col +
+            '" title="Merged here">&lt;&lt; @L' + mg.line + '</button> ';
+        });
+        cards.push(
+          '<div class="anchor-card p-3">' +
+          '<div class="flex items-center gap-2 flex-wrap">' +
+          '<span class="mono font-bold text-[#fbbf24]">&amp;' + esc(a.name) + '</span>' +
+          '<span class="tag-code tag-info">' + esc(a.kind) + '</span>' +
+          (g.index > 0 || graphs.length > 1 ? '<span class="text-[10px] text-[#5b6774] mono">doc ' + (g.index + 1) + '</span>' : '') +
+          '<button class="chip-loc ml-auto" data-line="' + a.line + '" data-col="' + a.col + '" title="Jump to definition">def @L' + a.line + '</button>' +
+          '</div>' +
+          '<div class="mono text-[11px] text-[#9aa7b4] mt-2 break-words">' + esc(a.preview) + '</div>' +
+          (chips ? '<div class="mt-2 flex flex-wrap gap-1.5">' + chips + '</div>'
+                 : '<div class="mt-2 text-[11px] text-[#5b6774]">defined but never referenced</div>') +
+          '</div>'
+        );
+      });
+    });
+    if (!cards.length) {
+      var extra = '';
+      var allMerges = [];
+      graphs.forEach(function (g) { (g.merges || []).forEach(function (m) { allMerges.push(m); }); });
+      if (direction === 'y2j' && input.value.trim()) {
+        extra = '<p class="text-[#5b6774] text-xs sm:col-span-2 lg:col-span-3">No anchors or aliases in this input.</p>';
+      } else {
+        extra = '<p class="text-[#5b6774] text-xs sm:col-span-2 lg:col-span-3">Convert some YAML containing anchors to see the graph.</p>';
+      }
+      box.innerHTML = extra;
+      return;
+    }
+    box.innerHTML = cards.join('');
+  }
+
+  /* ---------------- quote-gotchas quick fix ---------------- */
+  function quoteGotchas() {
+    if (!lastResult) return;
+    var fixes = lastResult.warnings.filter(function (w) {
+      return w.code === 'bool-gotcha' && w.length && w.raw;
+    });
+    if (!fixes.length) return;
+    var lines = input.value.split('\n');
+    var byLine = {};
+    fixes.forEach(function (w) {
+      (byLine[w.line] = byLine[w.line] || []).push(w);
+    });
+    Object.keys(byLine).forEach(function (ln) {
+      var idx = parseInt(ln, 10) - 1;
+      if (idx < 0 || idx >= lines.length) return;
+      var arr = byLine[ln].sort(function (a, b) { return b.column - a.column; });
+      var s = lines[idx];
+      arr.forEach(function (w) {
+        var start = w.column - 1;
+        var tok = s.substr(start, w.length);
+        if (tok === w.raw) {
+          s = s.slice(0, start) + '"' + tok + '"' + s.slice(start + w.length);
+        }
+      });
+      lines[idx] = s;
+    });
+    input.value = lines.join('\n');
+    renderGutter(lastResult);
+    convert();
+  }
+
+  /* ---------------- clipboard / download ---------------- */
+  function copyOutput() {
+    var text = output.textContent || '';
+    function done(ok) {
+      var b = $('yf-copy');
+      var orig = b.textContent;
+      b.textContent = ok ? 'Copied!' : 'Copy failed';
+      setTimeout(function () { b.textContent = orig; }, 1200);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { done(document.execCommand('copy')); } catch (e) { done(false); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  function downloadOutput() {
+    var text = output.textContent || '';
+    var ext = direction === 'y2j' ? 'json' : 'yaml';
+    var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'yamlforge-output.' + ext;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(a.href);
+      document.body.removeChild(a);
+    }, 500);
+  }
+
+  /* ---------------- events ---------------- */
+  function setDirection(d) {
+    direction = d;
+    $('yf-tab-y2j').classList.toggle('active', d === 'y2j');
+    $('yf-tab-j2y').classList.toggle('active', d === 'j2y');
+    $('yf-tab-y2j').setAttribute('aria-selected', d === 'y2j');
+    $('yf-tab-j2y').setAttribute('aria-selected', d === 'j2y');
+    input.placeholder = d === 'y2j' ? 'Paste YAML here…' : 'Paste JSON here…';
+    if ($('yf-auto').checked) convert();
+  }
+
+  $('yf-tab-y2j').addEventListener('click', function () { setDirection('y2j'); });
+  $('yf-tab-j2y').addEventListener('click', function () { setDirection('j2y'); });
+  $('yf-convert').addEventListener('click', convert);
+  $('yf-sample').addEventListener('click', function () {
+    input.value = direction === 'y2j' ? SAMPLE_YAML : SAMPLE_JSON;
+    convert();
+  });
+  $('yf-clear').addEventListener('click', function () {
+    input.value = '';
+    lastResult = null;
+    output.textContent = '';
+    $('yf-status').textContent = '';
+    $('yf-stats').textContent = '';
+    renderGutter({ errors: [], warnings: [] });
+    renderErrors([]);
+    renderWarnings([]);
+    renderAnchors({ anchors: [] });
+    input.focus();
+  });
+  $('yf-upload').addEventListener('click', function () { $('yf-file').click(); });
+  $('yf-file').addEventListener('change', function (ev) {
+    var f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      input.value = String(rd.result || '');
+      // guess direction from extension
+      if (/\.(json)$/i.test(f.name)) setDirection('j2y');
+      else if (/\.(yaml|yml)$/i.test(f.name)) setDirection('y2j');
+      convert();
+    };
+    rd.readAsText(f);
+    ev.target.value = '';
+  });
+  $('yf-copy').addEventListener('click', copyOutput);
+  $('yf-download').addEventListener('click', downloadOutput);
+  $('yf-quote-gotchas').addEventListener('click', quoteGotchas);
+
+  ['yf-yaml-version', 'yf-json-indent', 'yf-yaml-indent', 'yf-multidoc-mode'].forEach(function (id) {
+    $(id).addEventListener('change', function () { if ($('yf-auto').checked) convert(); });
+  });
+
+  input.addEventListener('input', function () {
+    syncGutter();
+    if ($('yf-auto').checked) {
+      clearTimeout(debounceT);
+      debounceT = setTimeout(convert, 450);
+    }
+  });
+  input.addEventListener('scroll', syncGutter);
+  input.addEventListener('keydown', function (ev) {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); convert(); }
+  });
+
+  // delegated clicks for location chips (errors, warnings, anchors)
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    while (t && t !== document) {
+      if (t.classList && t.classList.contains('chip-loc') && t.hasAttribute('data-line')) {
+        jumpTo(parseInt(t.getAttribute('data-line'), 10), parseInt(t.getAttribute('data-col') || '1', 10));
+        return;
+      }
+      t = t.parentNode;
+    }
+  });
+
+  /* ---------------- subset list ---------------- */
+  (function () {
+    var ul = $('yf-subset-list');
+    ul.innerHTML = YF.SUPPORTED_SUBSET.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('');
+  })();
+
+  // initial gutter + sample
+  input.value = SAMPLE_YAML;
+  convert();
+})();
+</script>
+</body>
+</html>
